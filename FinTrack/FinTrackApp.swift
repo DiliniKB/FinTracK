@@ -5,11 +5,18 @@
 //  Created by Dilini Bandara on 2026-06-27.
 //
 
-import SwiftUI
+import GoogleSignIn
 import SwiftData
+import SwiftUI
 
 @main
 struct FinTrackApp: App {
+
+    // MARK: - Init
+
+    init() {
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: AppConfig.googleClientID)
+    }
 
     // MARK: - Auth dependency graph
 

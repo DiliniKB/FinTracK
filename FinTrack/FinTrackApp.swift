@@ -40,6 +40,7 @@ struct FinTrackApp: App {
         let schema = Schema([
             Item.self,
             Category.self,
+            Transaction.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

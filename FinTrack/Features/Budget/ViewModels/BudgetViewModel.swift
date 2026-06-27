@@ -45,7 +45,8 @@ class BudgetViewModel {
         self.transactionRepository = transactionRepository
         self.categoryRepository   = categoryRepository
         self.alertService         = alertService
-        self.selectedMonth        = normalizedMonth(Date())
+        let cal = Calendar.current
+        self.selectedMonth = cal.date(from: cal.dateComponents([.year, .month], from: Date())) ?? Date()
     }
 
     // MARK: - loadBudgets

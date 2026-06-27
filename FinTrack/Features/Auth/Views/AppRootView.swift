@@ -1,5 +1,6 @@
 import AuthenticationServices
 import GoogleSignIn
+import SwiftData
 import SwiftUI
 
 /// Root router. Switches the view hierarchy based on `AuthViewModel.state`.
@@ -11,6 +12,8 @@ struct AppRootView: View {
     /// Remembers whether the last non-error screen was the lock screen.
     /// Used to route `.error` state to the correct underlying screen.
     @State private var lockedContext = false
+
+    @Environment(\.modelContext) private var modelContext
 
     init(authVM: AuthViewModel) {
         self._authVM = State(initialValue: authVM)
@@ -41,8 +44,7 @@ struct AppRootView: View {
                 LockScreen(vm: authVM)
 
             case .authenticated:
-                // TODO: Replace with the app's main TabView / HomeScreen
-                placeholderHomeView
+                mainTabView
 
             case .error:
                 // Show the screen that owns the error so it can render inline.
@@ -73,21 +75,16 @@ struct AppRootView: View {
         }
     }
 
-    private var placeholderHomeView: some View {
-        // TODO: Replace with HomeScreen() once the main app is implemented.
-        NavigationStack {
-            VStack(spacing: 16) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.blue)
-                Text("Welcome to FinTrack")
-                    .font(.title2.bold())
-                Button("Sign Out", role: .destructive) {
-                    authVM.signOut()
-                }
-                .padding(.top, 8)
+    private var mainTabView: some View {
+        TabView {
+            CategoriesScreen(
+                vm: CategoryViewModel(
+                    repository: SwiftDataCategoryRepository(context: modelContext)
+                )
+            )
+            .tabItem {
+                Label("Categories", systemImage: "tag.fill")
             }
-            .navigationTitle("Home")
         }
     }
 }

@@ -29,7 +29,7 @@ struct CategoryRowView: View {
             if !category.isDefault {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiaryLabel)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 4)

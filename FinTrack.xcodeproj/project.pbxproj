@@ -9,10 +9,12 @@
 /* Begin PBXBuildFile section */
 		4FC59D942FF018E400964BFD /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC59D932FF018E400964BFD /* GoogleSignIn */; };
 		4FC59D962FF018E400964BFD /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC59D952FF018E400964BFD /* GoogleSignInSwift */; };
+		4FC59DB12FF032CF00964BFD /* Config.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 4FC59DB02FF032CF00964BFD /* Config.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		4FC59CE82FF0091B00964BFD /* FinTrack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FinTrack.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FC59DB02FF032CF00964BFD /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -54,6 +56,7 @@
 			children = (
 				4FC59CEA2FF0091B00964BFD /* FinTrack */,
 				4FC59CE92FF0091B00964BFD /* Products */,
+				4FC59DB02FF032CF00964BFD /* Config.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -134,6 +137,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4FC59DB12FF032CF00964BFD /* Config.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -152,6 +156,7 @@
 /* Begin XCBuildConfiguration section */
 		4FC59CF32FF0091D00964BFD /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4FC59DB02FF032CF00964BFD /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -216,6 +221,7 @@
 		};
 		4FC59CF42FF0091D00964BFD /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4FC59DB02FF032CF00964BFD /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -273,6 +279,7 @@
 		};
 		4FC59CF62FF0091D00964BFD /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4FC59DB02FF032CF00964BFD /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -307,6 +314,7 @@
 		};
 		4FC59CF72FF0091D00964BFD /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4FC59DB02FF032CF00964BFD /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

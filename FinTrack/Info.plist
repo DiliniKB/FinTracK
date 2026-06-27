@@ -13,5 +13,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>GOOGLE_CLIENT_ID</key>
+	<string>${GOOGLE_CLIENT_ID}</string>
 </dict>
 </plist>

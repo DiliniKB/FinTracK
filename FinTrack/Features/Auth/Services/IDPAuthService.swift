@@ -137,6 +137,7 @@ extension DefaultIDPAuthService: ASAuthorizationControllerPresentationContextPro
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive }
-        return scene?.keyWindow ?? UIWindow()
+        return scene?.keyWindow ?? UIWindow(windowScene:
+            UIApplication.shared.connectedScenes.first as! UIWindowScene)
     }
 }

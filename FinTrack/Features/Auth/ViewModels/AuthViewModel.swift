@@ -1,76 +1,136 @@
+import AuthenticationServices
 import Foundation
 import Observation
 
 /// Drives all authentication screens. Holds the canonical `AuthState` for the app.
+/// All state mutations are performed on the `@MainActor` so SwiftUI updates
+/// are always delivered on the main thread.
 @Observable
-class AuthViewModel {
+@MainActor
+final class AuthViewModel {
 
     // MARK: - State
 
     enum AuthState {
         case loading
         case unauthenticated        // No session → show WelcomeScreen
-        case locked                 // Session exists → show LockScreen
-        case authenticated(User)   // Ready → show HomeScreen
-        case error(String)
+        case locked                 // Session exists, biometric needed → show LockScreen
+        case authenticated(User)    // Ready → show HomeScreen
+        case error(String)          // Inline error — retain previous logical state via errorContext
     }
 
-    var state: AuthState = .loading
+    private(set) var state: AuthState = .loading
 
     // MARK: - Dependencies
 
-    private let authRepository: any AuthRepository
+    private let authRepository:  any AuthRepository
     private let biometricService: any BiometricService
-    private let idpAuthService: any IDPAuthService
+    private let idpAuthService:   any IDPAuthService
 
     init(
-        authRepository: any AuthRepository,
+        authRepository:  any AuthRepository,
         biometricService: any BiometricService,
-        idpAuthService: any IDPAuthService
+        idpAuthService:   any IDPAuthService
     ) {
-        self.authRepository = authRepository
+        self.authRepository   = authRepository
         self.biometricService = biometricService
-        self.idpAuthService = idpAuthService
+        self.idpAuthService   = idpAuthService
+        checkSession()
     }
 
-    // MARK: - Actions
+    // MARK: - checkSession
 
-    /// Called on app launch. Checks Keychain for an existing session.
+    /// Reads the Keychain for an existing session on app launch.
+    /// Transitions to `.locked` if one exists, `.unauthenticated` otherwise.
     func checkSession() {
-        // TODO: Read session via authRepository.getSession()
-        // TODO: If session exists → state = .locked
-        // TODO: If no session → state = .unauthenticated
+        if authRepository.getSession() != nil {
+            state = .locked
+        } else {
+            state = .unauthenticated
+        }
     }
 
-    /// Prompts Face ID / Touch ID. On success transitions to .authenticated.
+    // MARK: - authenticateWithBiometric
+
+    /// Prompts Face ID / Touch ID.
+    /// - Success → `.authenticated`
+    /// - `userFallback` → sign out + `.unauthenticated` (spec AUTH-04)
+    /// - All other failures → `.error` with retry message
     func authenticateWithBiometric() {
-        // TODO: Call biometricService.authenticate(reason:)
-        // TODO: On success: fetch user via authRepository.getCurrentUser(), set state = .authenticated(user)
-        // TODO: On failure: set state = .error(message) and surface retry + fallback option
+        Task {
+            do {
+                _ = try await biometricService.authenticate(
+                    reason: "Unlock FinTrack to access your finances."
+                )
+                // Biometric passed — load the persisted user.
+                guard let user = authRepository.getCurrentUser() else {
+                    // Session existed but user record is gone — treat as signed out.
+                    signOut()
+                    return
+                }
+                state = .authenticated(user)
+            } catch BiometricError.userFallback {
+                // User tapped the fallback button. Clear the session so
+                // WelcomeScreen is shown and they can re-authenticate via IDP.
+                signOut()
+            } catch BiometricError.userCancelled {
+                // User dismissed the prompt — stay on LockScreen, no error banner.
+                state = .locked
+            } catch {
+                state = .error(error.localizedDescription)
+            }
+        }
     }
 
-    /// Triggers Sign in with Apple flow via IDPAuthService → LocalAuthRepository.
+    // MARK: - signInWithApple
+
+    /// Triggers Sign in with Apple: IDPAuthService → LocalAuthRepository → `.authenticated`.
     func signInWithApple() {
-        // TODO: Call idpAuthService.signInWithApple()
-        // TODO: Pass credential to authRepository.signInWithApple(credential:)
-        // TODO: On success: set state = .authenticated(user)
-        // TODO: On failure: set state = .error(message)
+        Task {
+            do {
+                let credential = try await idpAuthService.signInWithApple()
+                let user       = try await authRepository.signInWithApple(credential: credential)
+                state = .authenticated(user)
+            } catch let error as ASAuthorizationError where error.code == .canceled {
+                // User cancelled the sheet — return silently, no error banner.
+                return
+            } catch {
+                state = .error(error.localizedDescription)
+            }
+        }
     }
 
-    /// Triggers Sign in with Google flow via IDPAuthService → LocalAuthRepository.
+    // MARK: - signInWithGoogle
+
+    /// Triggers Sign in with Google: IDPAuthService → LocalAuthRepository → `.authenticated`.
     func signInWithGoogle() {
-        // TODO: Obtain presenting UIViewController
-        // TODO: Call idpAuthService.signInWithGoogle(presenting:)
-        // TODO: Pass credential to authRepository.signInWithGoogle(credential:)
-        // TODO: On success: set state = .authenticated(user)
-        // TODO: On cancelled: silently return to WelcomeScreen (no error shown)
-        // TODO: On failure: set state = .error(message)
+        Task {
+            do {
+                let googleUser = try await idpAuthService.signInWithGoogle()
+                let user       = try await authRepository.signInWithGoogle(credential: googleUser)
+                state = .authenticated(user)
+            } catch IDPAuthError.googleCancelled {
+                // User cancelled — return silently, no error banner (spec §11).
+                return
+            } catch {
+                state = .error(error.localizedDescription)
+            }
+        }
     }
 
-    /// Clears the local session and returns to WelcomeScreen.
+    // MARK: - signOut
+
+    /// Clears the local Keychain session and returns to WelcomeScreen.
+    /// Errors from Keychain deletion are logged but do not block the transition —
+    /// the user must always be able to reach the sign-in screen.
     func signOut() {
-        // TODO: Call authRepository.signOut()
-        // TODO: Set state = .unauthenticated
-        // TODO: Handle and log any Keychain errors
+        do {
+            try authRepository.signOut()
+        } catch {
+            // Non-fatal: log and proceed. The session may already be missing
+            // (reinstall edge case, spec §11).
+            print("[AuthViewModel] signOut Keychain error (non-fatal): \(error)")
+        }
+        state = .unauthenticated
     }
 }

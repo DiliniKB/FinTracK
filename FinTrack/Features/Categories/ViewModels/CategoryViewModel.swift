@@ -62,6 +62,7 @@ final class CategoryViewModel {
     /// Validates the form, then either creates a new category or updates the one
     /// being edited. Reloads the lists and dismisses the sheet on success.
     func saveCategory() {
+        print("saveCategory called, formName: \(formName)")
         let trimmedName = formName.trimmingCharacters(in: .whitespaces)
 
         guard !trimmedName.isEmpty else {
@@ -95,6 +96,7 @@ final class CategoryViewModel {
             resetForm()
             showAddSheet = false
         } catch {
+            print("save error: \(error)")
             viewState = .error(error.localizedDescription)
         }
     }

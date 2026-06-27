@@ -77,14 +77,10 @@ struct AppRootView: View {
 
     private var mainTabView: some View {
         TabView {
-            CategoriesScreen(
-                vm: CategoryViewModel(
-                    repository: SwiftDataCategoryRepository(context: modelContext)
-                )
-            )
-            .tabItem {
-                Label("Categories", systemImage: "tag.fill")
-            }
+            CategoriesScreen()
+                .tabItem {
+                    Label("Categories", systemImage: "tag.fill")
+                }
         }
     }
 }

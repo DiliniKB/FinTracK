@@ -1,34 +1,31 @@
+import SwiftData
 import SwiftUI
 
 /// Main screen for browsing and managing categories.
 /// Segmented control switches between Expense and Income lists.
+/// `CategoryViewModel` is initialised lazily on first appear using the
+/// SwiftData `ModelContext` from the environment.
 struct CategoriesScreen: View {
 
-    @State private var vm: CategoryViewModel
+    @Environment(\.modelContext) private var modelContext
+    @State private var vm: CategoryViewModel?
     @State private var selectedType: CategoryType = .expense
-
-    init(vm: CategoryViewModel) {
-        self._vm = State(initialValue: vm)
-    }
 
     // MARK: - Derived
 
     private var displayedCategories: [Category] {
-        selectedType == .expense ? vm.expenseCategories : vm.incomeCategories
+        guard let vm else { return [] }
+        return selectedType == .expense ? vm.expenseCategories : vm.incomeCategories
     }
 
     private var errorMessage: String? {
-        if case .error(let msg) = vm.viewState { return msg }
+        if case .error(let msg) = vm?.viewState { return msg }
         return nil
     }
 
     // MARK: - Body
 
     var body: some View {
-        // @Bindable shadows self.vm so $vm.property bindings compile correctly
-        // against the @Observable class while @State owns the lifetime.
-        @Bindable var vm = vm
-
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("Category Type", selection: $selectedType) {
@@ -42,7 +39,7 @@ struct CategoriesScreen: View {
 
                 if displayedCategories.isEmpty {
                     emptyState
-                } else {
+                } else if let vm {
                     categoryList(vm: vm)
                 }
             }
@@ -50,22 +47,38 @@ struct CategoriesScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        vm.resetForm()
-                        vm.showAddSheet = true
+                        vm?.resetForm()
+                        vm?.showAddSheet = true
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .disabled(vm == nil)
                 }
             }
-            .sheet(isPresented: $vm.showAddSheet, onDismiss: { vm.resetForm() }) {
-                CategoryFormSheet(vm: vm)
+            .sheet(isPresented: Binding(
+                get: { vm?.showAddSheet ?? false },
+                set: { vm?.showAddSheet = $0 }
+            ), onDismiss: {
+                if let vm {
+                    print("sheet dismissed — categories: expense=\(vm.expenseCategories.count) income=\(vm.incomeCategories.count)")
+                    vm.resetForm()
+                }
+            }) {
+                if let vm {
+                    CategoryFormSheet(vm: vm)
+                }
             }
             .onAppear {
-                vm.loadCategories()
+                if vm == nil {
+                    vm = CategoryViewModel(
+                        repository: SwiftDataCategoryRepository(context: modelContext)
+                    )
+                    vm?.loadCategories()
+                }
             }
             .alert("Error", isPresented: Binding(
                 get: { errorMessage != nil },
-                set: { if !$0 { vm.viewState = .idle } }
+                set: { if !$0 { vm?.viewState = .idle } }
             )) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -82,7 +95,6 @@ struct CategoriesScreen: View {
                 CategoryRowView(
                     category: category,
                     onEdit: category.isDefault ? nil : {
-                        // Pre-populate form fields for edit mode.
                         vm.categoryToEdit = category
                         vm.formName       = category.name
                         vm.formIcon       = category.icon
@@ -116,30 +128,29 @@ struct CategoriesScreen: View {
 // MARK: - Preview
 
 #Preview("With categories") {
-    CategoriesScreen(vm: CategoryViewModel(repository: PreviewCategoryRepository(seeded: true)))
+    CategoriesScreen()
+        .modelContainer(PreviewContainer.make(seeded: true))
 }
 
 #Preview("Empty") {
-    CategoriesScreen(vm: CategoryViewModel(repository: PreviewCategoryRepository(seeded: false)))
+    CategoriesScreen()
+        .modelContainer(PreviewContainer.make(seeded: false))
 }
 
-// MARK: - Preview stub
+// MARK: - Preview helpers
 
-private struct PreviewCategoryRepository: CategoryRepository {
-    let seeded: Bool
-
-    func fetchAll() throws -> [Category] { seeded ? Self.samples : [] }
-    func fetchByType(_ type: CategoryType) throws -> [Category] {
-        seeded ? Self.samples.filter { $0.type == type } : []
+private enum PreviewContainer {
+    static func make(seeded: Bool) -> ModelContainer {
+        let container = try! ModelContainer(
+            for: Category.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        if seeded {
+            let ctx = container.mainContext
+            ctx.insert(Category(name: "Food & Dining", icon: "fork.knife",     colorHex: "#FF6B6B", type: .expense, isDefault: true))
+            ctx.insert(Category(name: "Shopping",      icon: "bag.fill",       colorHex: "#45B7D1", type: .expense, isDefault: false))
+            ctx.insert(Category(name: "Salary",        icon: "briefcase.fill", colorHex: "#00B894", type: .income,  isDefault: true))
+        }
+        return container
     }
-    func add(_ category: Category) throws {}
-    func update(_ category: Category) throws {}
-    func delete(_ category: Category) throws {}
-    func seedDefaultsIfNeeded() throws {}
-
-    private static let samples: [Category] = [
-        Category(name: "Food & Dining", icon: "fork.knife",    colorHex: "#FF6B6B", type: .expense, isDefault: true),
-        Category(name: "Shopping",      icon: "bag.fill",      colorHex: "#45B7D1", type: .expense, isDefault: false),
-        Category(name: "Salary",        icon: "briefcase.fill", colorHex: "#00B894", type: .income,  isDefault: true),
-    ]
 }

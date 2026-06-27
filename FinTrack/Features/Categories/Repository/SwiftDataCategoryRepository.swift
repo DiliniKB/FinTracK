@@ -20,14 +20,11 @@ final class SwiftDataCategoryRepository: CategoryRepository {
     }
 
     func fetchByType(_ type: CategoryType) throws -> [Category] {
-        // Capture rawValue so the #Predicate closure captures a plain String,
-        // not CategoryType (which SwiftData's predicate builder cannot encode).
-        let rawValue = type.rawValue
-        let descriptor = FetchDescriptor<Category>(
-            predicate: #Predicate { $0.type.rawValue == rawValue },
-            sortBy:    [SortDescriptor(\.name)]
-        )
-        return try context.fetch(descriptor)
+        // #Predicate cannot traverse .rawValue on a Codable enum stored by SwiftData —
+        // the macro generates a keypath expression that SwiftData cannot translate into
+        // a valid SQLite WHERE clause, causing it to silently return empty results.
+        // Filtering in memory after fetchAll() is the correct workaround.
+        try fetchAll().filter { $0.type == type }
     }
 
     // MARK: - Write

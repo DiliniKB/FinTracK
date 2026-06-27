@@ -78,9 +78,11 @@ struct WelcomeScreen: View {
 
     // MARK: - Sign in with Apple
 
-    /// Custom-styled button that mirrors the native Apple sign-in button appearance
-    /// while routing through `AuthViewModel` → `IDPAuthService` → `LocalAuthRepository`.
+    @ViewBuilder
     private var appleSignInButton: some View {
+#if DEBUG
+        /// Full implementation — only enabled in debug builds.
+        /// Routes through `AuthViewModel` → `IDPAuthService` → `LocalAuthRepository`.
         Button {
             guard !isLoading else { return }
             signingInWithApple = true
@@ -105,6 +107,20 @@ struct WelcomeScreen: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .disabled(isLoading)
+#else
+        /// Placeholder shown in release builds until Apple Sign-In is production-ready.
+        HStack(spacing: 8) {
+            Image(systemName: "apple.logo")
+                .font(.body.bold())
+            Text("Apple Sign-In (coming soon)")
+                .font(.body.bold())
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 52)
+        .foregroundStyle(.white.opacity(0.5))
+        .background(Color.black.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+#endif
     }
 
     // MARK: - Sign in with Google

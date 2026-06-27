@@ -10,6 +10,25 @@ import SwiftData
 
 @main
 struct FinTrackApp: App {
+
+    // MARK: - Auth dependency graph
+
+    // Each layer is built once at app startup and held for the lifetime of the process.
+    // The dependency order mirrors the spec: Keychain → Repository → ViewModel.
+    private let authViewModel: AuthViewModel = {
+        let keychain    = DefaultKeychainService()
+        let biometric   = DefaultBiometricService()
+        let idp         = DefaultIDPAuthService()
+        let repository  = LocalAuthRepository(keychainService: keychain)
+        return AuthViewModel(
+            authRepository:   repository,
+            biometricService: biometric,
+            idpAuthService:   idp
+        )
+    }()
+
+    // MARK: - SwiftData (retained for future non-auth models)
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -23,9 +42,11 @@ struct FinTrackApp: App {
         }
     }()
 
+    // MARK: - Scene
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppRootView(authVM: authViewModel)
         }
         .modelContainer(sharedModelContainer)
     }

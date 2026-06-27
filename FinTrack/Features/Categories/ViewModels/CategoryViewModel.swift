@@ -15,7 +15,7 @@ final class CategoryViewModel {
         case error(String)
     }
 
-    private(set) var viewState: ViewState = .idle
+    var viewState: ViewState = .idle
 
     // MARK: - Category Lists
 

@@ -1,35 +1,54 @@
 import SwiftUI
 
 /// A single row in the categories list.
-///
-/// Layout:
-/// - Colored circle containing the category's SF Symbol icon
-/// - Category name
-/// - Edit button (custom categories only)
-/// - Trailing swipe-to-delete handled by the parent `List`
+/// Shows a colored icon circle, the category name, and an edit chevron
+/// for custom (non-default) categories.
 struct CategoryRowView: View {
 
     let category: Category
-    /// Called when the user taps the edit button. Nil for default categories.
+    /// Non-nil only for custom categories. Nil hides the edit chevron.
     var onEdit: (() -> Void)?
 
     var body: some View {
-        // TODO: HStack:
-        //   - Colored circle icon:
-        //       Circle filled with Color(hex: category.colorHex)
-        //       SF Symbol Image(systemName: category.icon) in white
-        //   - Text(category.name)
-        //   - Spacer()
-        //   - If !category.isDefault: edit pencil button that calls onEdit?()
-        EmptyView()
+        HStack(spacing: 12) {
+            // Colored icon circle
+            ZStack {
+                Circle()
+                    .fill(Color(hex: category.colorHex))
+                    .frame(width: 40, height: 40)
+                Image(systemName: category.icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.white)
+            }
+
+            Text(category.name)
+                .font(.body)
+
+            Spacer()
+
+            if !category.isDefault {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiaryLabel)
+            }
+        }
+        .padding(.vertical, 4)
+        // Extend tap target across the full row width.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !category.isDefault else { return }
+            onEdit?()
+        }
     }
 }
+
+// MARK: - Preview
 
 #Preview {
     List {
         CategoryRowView(
-            category: .preview,
-            onEdit: {}
+            category: .previewCustom,
+            onEdit: { }
         )
         CategoryRowView(
             category: .previewDefault,
@@ -38,21 +57,13 @@ struct CategoryRowView: View {
     }
 }
 
-// MARK: - Preview helpers
-
 private extension Category {
-    static let preview = Category(
-        name: "Shopping",
-        icon: "bag.fill",
-        colorHex: "#45B7D1",
-        type: .expense,
-        isDefault: false
+    static let previewCustom = Category(
+        name: "Shopping", icon: "bag.fill", colorHex: "#45B7D1",
+        type: .expense, isDefault: false
     )
     static let previewDefault = Category(
-        name: "Salary",
-        icon: "briefcase.fill",
-        colorHex: "#00B894",
-        type: .income,
-        isDefault: true
+        name: "Salary", icon: "briefcase.fill", colorHex: "#00B894",
+        type: .income, isDefault: true
     )
 }

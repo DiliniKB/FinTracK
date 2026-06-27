@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// Drives `CategoriesScreen` and the add/edit form sheet.
-/// All state mutations happen on the `@MainActor`.
+/// Drives `CategoriesScreen` and `CategoryFormSheet`.
+/// All state mutations are confined to the `@MainActor`.
 @Observable
 @MainActor
 final class CategoryViewModel {
@@ -15,19 +15,17 @@ final class CategoryViewModel {
         case error(String)
     }
 
-    var viewState: ViewState = .idle
+    private(set) var viewState: ViewState = .idle
 
     // MARK: - Category Lists
 
-    /// Categories of type `.expense`, loaded by `loadCategories()`.
-    var expenseCategories: [Category] = []
-    /// Categories of type `.income`, loaded by `loadCategories()`.
-    var incomeCategories: [Category] = []
+    private(set) var expenseCategories: [Category] = []
+    private(set) var incomeCategories:  [Category] = []
 
     // MARK: - Sheet Control
 
-    var showAddSheet: Bool      = false
-    var categoryToEdit: Category? = nil   // non-nil → form is in edit mode
+    var showAddSheet:    Bool      = false
+    var categoryToEdit:  Category? = nil   // non-nil → form opens in edit mode
 
     // MARK: - Form Fields
 
@@ -44,44 +42,86 @@ final class CategoryViewModel {
         self.repository = repository
     }
 
-    // MARK: - Actions
+    // MARK: - loadCategories
 
-    /// Seeds defaults if needed, then fetches both category lists.
+    /// Seeds default categories on first launch, then refreshes both lists.
     func loadCategories() {
-        // TODO: Set viewState = .loading
-        // TODO: try repository.seedDefaultsIfNeeded()
-        // TODO: expenseCategories = try repository.fetchByType(.expense)
-        // TODO: incomeCategories  = try repository.fetchByType(.income)
-        // TODO: Set viewState = .idle
-        // TODO: On error: set viewState = .error(error.localizedDescription)
+        viewState = .loading
+        do {
+            try repository.seedDefaultsIfNeeded()
+            expenseCategories = try repository.fetchByType(.expense)
+            incomeCategories  = try repository.fetchByType(.income)
+            viewState = .idle
+        } catch {
+            viewState = .error(error.localizedDescription)
+        }
     }
 
-    /// Adds a new category or updates the one referenced by `categoryToEdit`.
-    /// Validates the form before saving.
+    // MARK: - saveCategory
+
+    /// Validates the form, then either creates a new category or updates the one
+    /// being edited. Reloads the lists and dismisses the sheet on success.
     func saveCategory() {
-        // TODO: Guard formName is not empty (trimmed), else set viewState = .error("Name is required")
-        // TODO: Guard formName.count <= 30, else set viewState = .error("Name must be 30 characters or fewer")
-        // TODO: If categoryToEdit != nil → mutate its fields and call repository.update(_:)
-        // TODO: Else → create new Category and call repository.add(_:)
-        // TODO: Call loadCategories() to refresh lists
-        // TODO: Call resetForm() and set showAddSheet = false
-        // TODO: On error: set viewState = .error(error.localizedDescription)
+        let trimmedName = formName.trimmingCharacters(in: .whitespaces)
+
+        guard !trimmedName.isEmpty else {
+            viewState = .error("Name is required.")
+            return
+        }
+        guard trimmedName.count <= 30 else {
+            viewState = .error("Name must be 30 characters or fewer.")
+            return
+        }
+
+        do {
+            if let existing = categoryToEdit {
+                // Edit mode — mutate the live @Model instance; SwiftData tracks the diff.
+                existing.name     = trimmedName
+                existing.icon     = formIcon
+                existing.colorHex = formColor
+                existing.type     = formType
+                try repository.update(existing)
+            } else {
+                // Add mode — create a fresh Category and insert it.
+                let category = Category(
+                    name:     trimmedName,
+                    icon:     formIcon,
+                    colorHex: formColor,
+                    type:     formType
+                )
+                try repository.add(category)
+            }
+            loadCategories()
+            resetForm()
+            showAddSheet = false
+        } catch {
+            viewState = .error(error.localizedDescription)
+        }
     }
 
-    /// Deletes a custom category. No-ops (with error state) if category is a default.
+    // MARK: - deleteCategory
+
+    /// Deletes a custom category and reloads the lists.
+    /// Sets an error state if the category is a system default.
     func deleteCategory(_ category: Category) {
-        // TODO: Guard !category.isDefault, else set viewState = .error(CategoryError.cannotDeleteDefault message)
-        // TODO: try repository.delete(category)
-        // TODO: Call loadCategories() to refresh lists
-        // TODO: On error: set viewState = .error(error.localizedDescription)
+        do {
+            try repository.delete(category)
+            loadCategories()
+        } catch {
+            // CategoryError.cannotDeleteDefault surfaces here with its own
+            // localizedDescription; all other errors propagate the same way.
+            viewState = .error(error.localizedDescription)
+        }
     }
 
-    /// Resets all form fields to their defaults and clears edit context.
+    // MARK: - resetForm
+
+    /// Clears all form fields back to their defaults and exits edit mode.
     func resetForm() {
-        // TODO: formName      = ""
-        // TODO: formIcon      = "tag.fill"
-        // TODO: formColor     = "#4ECDC4"
-        // TODO: formType      = .expense
-        // TODO: categoryToEdit = nil
+        formName       = ""
+        formIcon       = "tag.fill"
+        formColor      = "#4ECDC4"
+        formType       = .expense
+        categoryToEdit = nil
     }
 }

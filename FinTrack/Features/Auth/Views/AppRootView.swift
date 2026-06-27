@@ -81,6 +81,10 @@ struct AppRootView: View {
                 .tabItem {
                     Label("Transactions", systemImage: "list.bullet")
                 }
+            BudgetScreen()
+                .tabItem {
+                    Label("Budgets", systemImage: "chart.bar.fill")
+                }
             CategoriesScreen()
                 .tabItem {
                     Label("Categories", systemImage: "tag.fill")

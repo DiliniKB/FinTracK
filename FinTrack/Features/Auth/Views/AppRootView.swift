@@ -77,6 +77,10 @@ struct AppRootView: View {
 
     private var mainTabView: some View {
         TabView {
+            TransactionsScreen()
+                .tabItem {
+                    Label("Transactions", systemImage: "list.bullet")
+                }
             CategoriesScreen()
                 .tabItem {
                     Label("Categories", systemImage: "tag.fill")

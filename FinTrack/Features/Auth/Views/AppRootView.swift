@@ -1,52 +1,137 @@
+import AuthenticationServices
+import GoogleSignIn
 import SwiftUI
 
-/// Root router view. Switches between auth screens and the main app
-/// based on `AuthViewModel.state`.
+/// Root router. Switches the view hierarchy based on `AuthViewModel.state`.
+/// Tracks the last stable (non-error) screen so errors from biometric context
+/// still show LockScreen, and errors from sign-in context still show WelcomeScreen.
 struct AppRootView: View {
 
     @State private var authVM: AuthViewModel
+    /// Remembers whether the last non-error screen was the lock screen.
+    /// Used to route `.error` state to the correct underlying screen.
+    @State private var lockedContext = false
 
     init(authVM: AuthViewModel) {
         self._authVM = State(initialValue: authVM)
     }
 
+    // Stable string id that changes whenever the base state changes —
+    // used by .task(id:) to detect transitions without requiring Equatable.
+    private var stateRouteID: String {
+        switch authVM.state {
+        case .loading:                  return "loading"
+        case .unauthenticated:          return "unauthenticated"
+        case .locked:                   return "locked"
+        case .authenticated(let user):  return "authenticated-\(user.id)"
+        case .error(let msg):           return "error-\(msg)"
+        }
+    }
+
     var body: some View {
-        // TODO: Switch on authVM.state and render the appropriate child view:
-        //   .loading        → LoadingView()
-        //   .unauthenticated → WelcomeScreen(vm: authVM)
-        //   .locked          → LockScreen(vm: authVM)
-        //   .authenticated   → HomeScreen()   (or the app's main tab view)
-        //   .error(let msg)  → inline error / ErrorView(message: msg)
-        EmptyView()
+        Group {
+            switch authVM.state {
+            case .loading:
+                loadingView
+
+            case .unauthenticated:
+                WelcomeScreen(vm: authVM)
+
+            case .locked:
+                LockScreen(vm: authVM)
+
+            case .authenticated:
+                // TODO: Replace with the app's main TabView / HomeScreen
+                placeholderHomeView
+
+            case .error:
+                // Show the screen that owns the error so it can render inline.
+                if lockedContext {
+                    LockScreen(vm: authVM)
+                } else {
+                    WelcomeScreen(vm: authVM)
+                }
+            }
+        }
+        // Track the last stable screen so .error routes correctly.
+        .task(id: stateRouteID) {
+            switch authVM.state {
+            case .locked:          lockedContext = true
+            case .unauthenticated: lockedContext = false
+            default:               break
+            }
+        }
+    }
+
+    // MARK: - Private sub-views
+
+    private var loadingView: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            ProgressView()
+                .controlSize(.large)
+        }
+    }
+
+    private var placeholderHomeView: some View {
+        // TODO: Replace with HomeScreen() once the main app is implemented.
+        NavigationStack {
+            VStack(spacing: 16) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 56))
+                    .foregroundStyle(.blue)
+                Text("Welcome to FinTrack")
+                    .font(.title2.bold())
+                Button("Sign Out", role: .destructive) {
+                    authVM.signOut()
+                }
+                .padding(.top, 8)
+            }
+            .navigationTitle("Home")
+        }
     }
 }
 
-#Preview {
-    // TODO: Inject preview-friendly AuthViewModel with mock dependencies
+// MARK: - Preview
+
+#Preview("Unauthenticated") {
     AppRootView(authVM: AuthViewModel(
-        authRepository: PreviewAuthRepository(),
+        authRepository:   PreviewAuthRepository(session: nil),
         biometricService: PreviewBiometricService(),
-        idpAuthService: PreviewIDPAuthService()
+        idpAuthService:   PreviewIDPAuthService()
     ))
 }
 
-// MARK: - Preview stubs (remove or move to a PreviewHelpers file before shipping)
+#Preview("Locked") {
+    AppRootView(authVM: AuthViewModel(
+        authRepository:   PreviewAuthRepository(session: .preview),
+        biometricService: PreviewBiometricService(),
+        idpAuthService:   PreviewIDPAuthService()
+    ))
+}
+
+// MARK: - Preview stubs
 
 private struct PreviewAuthRepository: AuthRepository {
+    let session: AuthSession?
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async throws -> User { fatalError() }
-    func signInWithGoogle(credential: Any) async throws -> User { fatalError() }
+    func signInWithGoogle(credential: GIDGoogleUser) async throws -> User { fatalError() }
     func getCurrentUser() -> User? { nil }
-    func getSession() -> AuthSession? { nil }
+    func getSession() -> AuthSession? { session }
     func signOut() throws {}
 }
 
 private struct PreviewBiometricService: BiometricService {
-    var isAvailable: Bool { false }
-    var biometricType: BiometricType { .none }
+    var isAvailable: Bool  { false }
+    var biometricType: BiometricType { .faceID }
     func authenticate(reason: String) async throws -> Bool { false }
 }
 
 private struct PreviewIDPAuthService: IDPAuthService {
     func signInWithApple() async throws -> ASAuthorizationAppleIDCredential { fatalError() }
-    func signInWithGoogle(presenting: Any) async throws -> Any { fatalError() }
+    func signInWithGoogle() async throws -> GIDGoogleUser { fatalError() }
+}
+
+private extension AuthSession {
+    static let preview = AuthSession(userId: "preview", provider: .apple, createdAt: .now)
 }

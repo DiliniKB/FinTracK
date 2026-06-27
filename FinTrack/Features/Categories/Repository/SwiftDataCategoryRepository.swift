@@ -13,61 +13,79 @@ final class SwiftDataCategoryRepository: CategoryRepository {
     // MARK: - Fetch
 
     func fetchAll() throws -> [Category] {
-        // TODO: Build a FetchDescriptor<Category> with no predicate, sorted by name
-        // TODO: Return context.fetch(descriptor)
-        return []
+        let descriptor = FetchDescriptor<Category>(
+            sortBy: [SortDescriptor(\.name)]
+        )
+        return try context.fetch(descriptor)
     }
 
     func fetchByType(_ type: CategoryType) throws -> [Category] {
-        // TODO: Build a FetchDescriptor<Category> with predicate: #Predicate { $0.type == type }
-        // TODO: Sort by name
-        // TODO: Return context.fetch(descriptor)
-        return []
+        // Capture rawValue so the #Predicate closure captures a plain String,
+        // not CategoryType (which SwiftData's predicate builder cannot encode).
+        let rawValue = type.rawValue
+        let descriptor = FetchDescriptor<Category>(
+            predicate: #Predicate { $0.type.rawValue == rawValue },
+            sortBy:    [SortDescriptor(\.name)]
+        )
+        return try context.fetch(descriptor)
     }
 
     // MARK: - Write
 
     func add(_ category: Category) throws {
-        // TODO: context.insert(category)
-        // TODO: try context.save()
+        context.insert(category)
+        try context.save()
     }
 
     func update(_ category: Category) throws {
-        // TODO: Guard category.isDefault == false, else throw CategoryError.cannotEditDefault
-        // TODO: Mutate fields on the passed-in @Model instance (SwiftData tracks changes automatically)
-        // TODO: try context.save()
+        guard !category.isDefault else {
+            throw CategoryError.cannotEditDefault
+        }
+        // The caller mutates the @Model instance's properties directly before
+        // calling update(). SwiftData tracks those changes automatically;
+        // we only need to persist them.
+        try context.save()
     }
 
     func delete(_ category: Category) throws {
-        // TODO: Guard category.isDefault == false, else throw CategoryError.cannotDeleteDefault
-        // TODO: context.delete(category)
-        // TODO: try context.save()
+        guard !category.isDefault else {
+            throw CategoryError.cannotDeleteDefault
+        }
+        context.delete(category)
+        try context.save()
     }
 
     // MARK: - Seeding
 
     func seedDefaultsIfNeeded() throws {
-        // TODO: Call fetchAll(); guard existing.isEmpty else return
-        // TODO: Insert all default categories defined in Category+Defaults.swift (or inline below)
-        // TODO: try context.save()
+        let existing = try fetchAll()
+        guard existing.isEmpty else { return }
 
-        // Default expense categories (spec §4):
-        // ("Food & Dining", "fork.knife",           "#FF6B6B", .expense)
-        // ("Transport",     "car.fill",              "#4ECDC4", .expense)
-        // ("Shopping",      "bag.fill",              "#45B7D1", .expense)
-        // ("Entertainment", "tv.fill",               "#96CEB4", .expense)
-        // ("Health",        "heart.fill",            "#FF6B9D", .expense)
-        // ("Utilities",     "bolt.fill",             "#FFEAA7", .expense)
-        // ("Education",     "book.fill",             "#A29BFE", .expense)
-        // ("Other",         "ellipsis.circle.fill",  "#B2BEC3", .expense)
-
-        // Default income categories (spec §4):
-        // ("Salary",        "briefcase.fill",                   "#00B894", .income)
-        // ("Freelance",     "laptopcomputer",                   "#00CEC9", .income)
-        // ("Investment",    "chart.line.uptrend.xyaxis",        "#6C5CE7", .income)
-        // ("Gift",          "gift.fill",                        "#FD79A8", .income)
-        // ("Other Income",  "ellipsis.circle.fill",             "#B2BEC3", .income)
+        for seed in Self.defaultCategories {
+            context.insert(seed)
+        }
+        try context.save()
     }
+
+    // MARK: - Default category definitions (spec §4)
+
+    private static let defaultCategories: [Category] = [
+        // Expense
+        Category(name: "Food & Dining",  icon: "fork.knife",                  colorHex: "#FF6B6B", type: .expense, isDefault: true),
+        Category(name: "Transport",      icon: "car.fill",                    colorHex: "#4ECDC4", type: .expense, isDefault: true),
+        Category(name: "Shopping",       icon: "bag.fill",                    colorHex: "#45B7D1", type: .expense, isDefault: true),
+        Category(name: "Entertainment",  icon: "tv.fill",                     colorHex: "#96CEB4", type: .expense, isDefault: true),
+        Category(name: "Health",         icon: "heart.fill",                  colorHex: "#FF6B9D", type: .expense, isDefault: true),
+        Category(name: "Utilities",      icon: "bolt.fill",                   colorHex: "#FFEAA7", type: .expense, isDefault: true),
+        Category(name: "Education",      icon: "book.fill",                   colorHex: "#A29BFE", type: .expense, isDefault: true),
+        Category(name: "Other",          icon: "ellipsis.circle.fill",        colorHex: "#B2BEC3", type: .expense, isDefault: true),
+        // Income
+        Category(name: "Salary",         icon: "briefcase.fill",              colorHex: "#00B894", type: .income,  isDefault: true),
+        Category(name: "Freelance",      icon: "laptopcomputer",              colorHex: "#00CEC9", type: .income,  isDefault: true),
+        Category(name: "Investment",     icon: "chart.line.uptrend.xyaxis",   colorHex: "#6C5CE7", type: .income,  isDefault: true),
+        Category(name: "Gift",           icon: "gift.fill",                   colorHex: "#FD79A8", type: .income,  isDefault: true),
+        Category(name: "Other Income",   icon: "ellipsis.circle.fill",        colorHex: "#B2BEC3", type: .income,  isDefault: true),
+    ]
 }
 
 // MARK: - Repository Errors

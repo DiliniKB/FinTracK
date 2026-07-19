@@ -15,6 +15,7 @@ final class Transaction {
     var date: Date
     var createdAt: Date
     var source: TransactionSource
+    var bank: String?
 
     init(
         id: UUID = UUID(),
@@ -28,9 +29,9 @@ final class Transaction {
         note: String = "",
         date: Date = Date(),
         createdAt: Date = Date(),
-        source: TransactionSource = .manual
+        source: TransactionSource = .manual,
+        bank: String? = nil
     ) {
-        // TODO: Implement initializer
         self.id = id
         self.amount = amount
         self.type = type
@@ -43,5 +44,6 @@ final class Transaction {
         self.date = date
         self.createdAt = createdAt
         self.source = source
+        self.bank = bank
     }
 }

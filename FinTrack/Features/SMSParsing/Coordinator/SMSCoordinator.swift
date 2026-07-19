@@ -10,6 +10,7 @@ final class SMSCoordinator {
     private(set) var pendingResult: ParsedSMSResult? = nil
     var showConfirmation: Bool = false
     private(set) var parseError: SMSParseError? = nil
+    private var parseTask: Task<Void, Never>? = nil
 
     // MARK: - Dependencies
 
@@ -61,15 +62,20 @@ final class SMSCoordinator {
     // MARK: - Handle incoming SMS
 
     func handle(smsText: String, sender: String? = nil) {
+        parseTask?.cancel()
         parseError = nil
-        Task {
+        parseTask = Task {
             do {
                 var result = try parser.parse(smsText, sender: sender)
+                try Task.checkCancellation()
                 result = await convertToLKR(result)
+                try Task.checkCancellation()
                 result = resolveCategoryId(for: result)
                 pendingResult    = result
                 showConfirmation = true
                 await notificationService.notifyParsed(result)
+            } catch is CancellationError {
+                // Superseded by a newer SMS — silently drop
             } catch let error as SMSParseError {
                 parseError = error
             } catch {
@@ -86,6 +92,7 @@ final class SMSCoordinator {
         category:   Category,
         payee:      String,
         date:       Date,
+        bank:       DetectedBank,
         repository: any TransactionRepository
     ) throws {
         let transaction = Transaction(
@@ -97,7 +104,8 @@ final class SMSCoordinator {
             categoryColorHex: category.colorHex,
             payee:            payee,
             date:             date,
-            source:           .sms
+            source:           .sms,
+            bank:             bank == .unknown ? nil : bank.rawValue
         )
         try repository.add(transaction)
         dismiss()

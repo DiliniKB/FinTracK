@@ -218,6 +218,7 @@ struct SMSConfirmationSheet: View {
                 category:   category,
                 payee:      formPayee,
                 date:       formDate,
+                bank:       formBank,
                 repository: transactionRepository
             )
         } catch {

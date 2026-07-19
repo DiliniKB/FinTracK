@@ -77,12 +77,22 @@ struct AppRootView: View {
             Task { await smsCoordinator?.requestNotificationPermission() }
         }
         .onOpenURL { url in
-            guard url.scheme == "fintrack",
-                  url.host == "sms",
-                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-                  let smsText = components.queryItems?.first(where: { $0.name == "text" })?.value
+            guard url.scheme == "fintrack", url.host == "sms" else { return }
+
+            // URLComponents drops everything after an unencoded '#' into `fragment`.
+            // Reconstruct by appending the fragment back before parsing query items.
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            if let fragment = url.fragment, components?.queryItems?.isEmpty == false {
+                // Re-attach fragment as part of the text value
+                if let idx = components?.queryItems?.firstIndex(where: { $0.name == "text" }) {
+                    let existing = components?.queryItems?[idx].value ?? ""
+                    components?.queryItems?[idx] = URLQueryItem(name: "text", value: existing + "#" + fragment)
+                }
+            }
+
+            guard let smsText = components?.queryItems?.first(where: { $0.name == "text" })?.value
             else { return }
-            let sender = components.queryItems?.first(where: { $0.name == "sender" })?.value
+            let sender = components?.queryItems?.first(where: { $0.name == "sender" })?.value
             smsCoordinator?.handle(smsText: smsText, sender: sender)
         }
         .sheet(isPresented: Binding(

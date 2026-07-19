@@ -6,24 +6,24 @@ final class NLSMSParserService: SMSParserService {
     func parse(_ text: String, sender: String? = nil) throws -> ParsedSMSResult {
         guard isBankSMS(text) else { throw SMSParseError.notBankSMS }
 
-        let bank     = detectBank(text, sender: sender)
-        let amount   = try extractAmount(text)
-        let currency = extractCurrency(text)
-        let type     = detectType(text)
-        let payee    = extractPayee(text, bank: bank)
-        let date     = extractDate(text) ?? Date()
+        let bank        = detectBank(text, sender: sender)
+        let amount      = try extractAmount(text)
+        let currency    = extractCurrency(text)
+        let type        = detectType(text)
+        let payee       = extractPayee(text, bank: bank)
+        let rawDate     = extractDate(text)
 
         return ParsedSMSResult(
-            amount:              amount, // converted to LKR by coordinator; raw value for now
+            amount:              amount,
             originalAmount:      amount,
             originalCurrency:    currency,
             type:                type,
             payee:               payee,
-            date:                date,
-            suggestedCategoryId: nil, // resolved by SMSCoordinator which has CategoryRepository
+            date:                rawDate ?? Date(),
+            suggestedCategoryId: nil,
             rawSMS:              text,
             bank:                bank,
-            confidence:          computeConfidence(amount: amount, payee: payee, date: date)
+            confidence:          computeConfidence(amount: amount, payee: payee, dateFound: rawDate != nil)
         )
     }
 
@@ -79,7 +79,10 @@ final class NLSMSParserService: SMSParserService {
 
     private func detectType(_ text: String) -> CategoryType {
         let lower = text.lowercased()
-        let creditKeywords = ["credited", "credit", "received", "deposited", "added"]
+        // Check debit first — "credit card debited" should still be expense
+        let debitKeywords = ["debited", "debit card", "withdrawn", "purchase", "authorised", "authorized"]
+        if debitKeywords.contains(where: { lower.contains($0) }) { return .expense }
+        let creditKeywords = ["credited", "received", "deposited", "added"]
         return creditKeywords.contains(where: { lower.contains($0) }) ? .income : .expense
     }
 
@@ -88,20 +91,40 @@ final class NLSMSParserService: SMSParserService {
     private func extractPayee(_ text: String, bank: DetectedBank) -> String {
         let tagger = NLTagger(tagSchemes: [.nameType])
         tagger.string = text
-        var organizations: [String] = []
+
+        // Collect (word, range) pairs tagged as organisation names
+        var orgTokens: [(word: String, range: Range<String.Index>)] = []
         tagger.enumerateTags(in: text.startIndex..<text.endIndex,
                              unit: .word,
                              scheme: .nameType,
                              options: [.omitWhitespace, .omitPunctuation]) { tag, range in
             if tag == .organizationName {
-                organizations.append(String(text[range]))
+                orgTokens.append((String(text[range]), range))
             }
             return true
         }
 
+        // Join consecutive tokens (separated only by whitespace) into full merchant names
+        var merged: [String] = []
+        var currentGroup: [(word: String, range: Range<String.Index>)] = []
+        for token in orgTokens {
+            if let last = currentGroup.last {
+                let gap = String(text[last.range.upperBound..<token.range.lowerBound])
+                if gap.allSatisfy({ $0.isWhitespace }) {
+                    currentGroup.append(token)
+                    continue
+                }
+                merged.append(currentGroup.map(\.word).joined(separator: " "))
+            }
+            currentGroup = [token]
+        }
+        if !currentGroup.isEmpty {
+            merged.append(currentGroup.map(\.word).joined(separator: " "))
+        }
+
         let bankNames = ["COMBANK", "SAMPATH", "HNB", "BOC", "NSB", "PEOPLESB",
                          "Commercial", "Sampath", "Peoples"]
-        if let merchant = organizations.first(where: { org in
+        if let merchant = merged.first(where: { org in
             !bankNames.contains(where: { org.contains($0) })
         }) {
             return merchant
@@ -136,11 +159,11 @@ final class NLSMSParserService: SMSParserService {
 
     // MARK: - Confidence score
 
-    private func computeConfidence(amount: Double, payee: String, date: Date?) -> Double {
+    private func computeConfidence(amount: Double, payee: String, dateFound: Bool) -> Double {
         var score = 0.0
-        if amount > 0                      { score += 0.5 }
-        if payee != "Unknown Merchant"     { score += 0.3 }
-        if date != nil                     { score += 0.2 }
+        if amount > 0                  { score += 0.5 }
+        if payee != "Unknown Merchant" { score += 0.3 }
+        if dateFound                   { score += 0.2 }
         return score
     }
 }

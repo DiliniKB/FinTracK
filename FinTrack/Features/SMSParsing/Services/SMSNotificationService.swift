@@ -11,7 +11,7 @@ final class SMSNotificationService {
     func notifyParsed(_ result: ParsedSMSResult) async {
         let content       = UNMutableNotificationContent()
         content.title     = "New Transaction Detected"
-        content.body      = "\(result.type == .expense ? "Expense" : "Income") of \(formatted(result.amount)) from \(result.payee)"
+        content.body      = "\(result.type == .expense ? "Expense" : "Income") of \(result.originalCurrency) \(formatted(result.amount)) from \(result.payee)"
         content.sound     = .default
         content.userInfo  = ["action": "confirm_sms"]
 

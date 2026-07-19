@@ -6,14 +6,17 @@ final class NLSMSParserService: SMSParserService {
     func parse(_ text: String) throws -> ParsedSMSResult {
         guard isBankSMS(text) else { throw SMSParseError.notBankSMS }
 
-        let bank   = detectBank(text)
-        let amount = try extractAmount(text)
-        let type   = detectType(text)
-        let payee  = extractPayee(text, bank: bank)
-        let date   = extractDate(text) ?? Date()
+        let bank     = detectBank(text)
+        let amount   = try extractAmount(text)
+        let currency = extractCurrency(text)
+        let type     = detectType(text)
+        let payee    = extractPayee(text, bank: bank)
+        let date     = extractDate(text) ?? Date()
 
         return ParsedSMSResult(
-            amount:              amount,
+            amount:              amount, // converted to LKR by coordinator; raw value for now
+            originalAmount:      amount,
+            originalCurrency:    currency,
             type:                type,
             payee:               payee,
             date:                date,
@@ -29,7 +32,8 @@ final class NLSMSParserService: SMSParserService {
     private func isBankSMS(_ text: String) -> Bool {
         let keywords = ["debited", "debit", "credited", "credit", "withdrawn",
                         "COMBANK", "SAMPATH", "HNB", "BOC", "NSB", "PEOPLESB",
-                        "A/C", "account"]
+                        "A/C", "account", "authorised", "authorized",
+                        "debit card", "credit card", "cardholder", "purchase at"]
         let lower = text.lowercased()
         return keywords.contains { lower.contains($0.lowercased()) }
     }
@@ -47,8 +51,9 @@ final class NLSMSParserService: SMSParserService {
     // MARK: - Amount extraction
 
     private func extractAmount(_ text: String) throws -> Double {
-        let pattern = #"(?:Rs\.?|LKR)\s*([\d,]+(?:\.\d{1,2})?)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
+        // Matches: Rs.5,000.00 / Rs 5000 / LKR 5000 / USD 3.29 / SGD 10.00 / EUR 5.00 etc.
+        let pattern = #"(?:Rs\.?|LKR|USD|SGD|EUR|GBP|AUD)\s*([\d,]+(?:\.\d{1,2})?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let range = Range(match.range(at: 1), in: text)
         else { throw SMSParseError.amountNotFound }
@@ -56,6 +61,16 @@ final class NLSMSParserService: SMSParserService {
         let raw = String(text[range]).replacingOccurrences(of: ",", with: "")
         guard let amount = Double(raw) else { throw SMSParseError.amountNotFound }
         return amount
+    }
+
+    private func extractCurrency(_ text: String) -> String {
+        let pattern = #"\b(Rs\.?|LKR|USD|SGD|EUR|GBP|AUD)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text)
+        else { return "LKR" }
+        let raw = String(text[range]).uppercased()
+        return raw.hasPrefix("RS") ? "LKR" : raw
     }
 
     // MARK: - Type detection

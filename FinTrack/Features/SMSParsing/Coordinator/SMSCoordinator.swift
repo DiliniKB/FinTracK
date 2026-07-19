@@ -16,6 +16,7 @@ final class SMSCoordinator {
     private let parser:              any SMSParserService
     private let notificationService: SMSNotificationService
     private let categoryRepository:  any CategoryRepository
+    private let currencyConverter:   CurrencyConverterService
 
     // MARK: - Category suggestion map (merchant keyword → category name)
 
@@ -42,11 +43,13 @@ final class SMSCoordinator {
     init(
         parser:              any SMSParserService,
         notificationService: SMSNotificationService,
-        categoryRepository:  any CategoryRepository
+        categoryRepository:  any CategoryRepository,
+        currencyConverter:   CurrencyConverterService = CurrencyConverterService()
     ) {
         self.parser              = parser
         self.notificationService = notificationService
         self.categoryRepository  = categoryRepository
+        self.currencyConverter   = currencyConverter
     }
 
     // MARK: - Notification permission
@@ -59,16 +62,19 @@ final class SMSCoordinator {
 
     func handle(smsText: String) {
         parseError = nil
-        do {
-            var result = try parser.parse(smsText)
-            result = resolveCategoryId(for: result)
-            pendingResult    = result
-            showConfirmation = true
-            Task { await notificationService.notifyParsed(result) }
-        } catch let error as SMSParseError {
-            parseError = error
-        } catch {
-            parseError = .parseFailure(error.localizedDescription)
+        Task {
+            do {
+                var result = try parser.parse(smsText)
+                result = await convertToLKR(result)
+                result = resolveCategoryId(for: result)
+                pendingResult    = result
+                showConfirmation = true
+                await notificationService.notifyParsed(result)
+            } catch let error as SMSParseError {
+                parseError = error
+            } catch {
+                parseError = .parseFailure(error.localizedDescription)
+            }
         }
     }
 
@@ -105,6 +111,28 @@ final class SMSCoordinator {
         parseError       = nil
     }
 
+    // MARK: - Currency conversion
+
+    private func convertToLKR(_ result: ParsedSMSResult) async -> ParsedSMSResult {
+        guard result.isForeignCurrency else { return result }
+        let lkrAmount = await currencyConverter.convertToLKR(
+            amount: result.originalAmount,
+            from:   result.originalCurrency
+        )
+        return ParsedSMSResult(
+            amount:              lkrAmount ?? result.originalAmount, // fallback: raw amount, user corrects in sheet
+            originalAmount:      result.originalAmount,
+            originalCurrency:    result.originalCurrency,
+            type:                result.type,
+            payee:               result.payee,
+            date:                result.date,
+            suggestedCategoryId: result.suggestedCategoryId,
+            rawSMS:              result.rawSMS,
+            bank:                result.bank,
+            confidence:          lkrAmount != nil ? result.confidence : result.confidence * 0.7
+        )
+    }
+
     // MARK: - Category suggestion
 
     private func resolveCategoryId(for result: ParsedSMSResult) -> ParsedSMSResult {
@@ -116,6 +144,8 @@ final class SMSCoordinator {
 
         return ParsedSMSResult(
             amount:              result.amount,
+            originalAmount:      result.originalAmount,
+            originalCurrency:    result.originalCurrency,
             type:                result.type,
             payee:               result.payee,
             date:                result.date,

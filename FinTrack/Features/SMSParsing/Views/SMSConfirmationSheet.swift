@@ -114,11 +114,25 @@ struct SMSConfirmationSheet: View {
 
     private var amountSection: some View {
         Section("Amount") {
+            if result.isForeignCurrency {
+                HStack {
+                    Text("Original")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(result.originalCurrency) \(String(format: "%.2f", result.originalAmount))")
+                        .foregroundStyle(.secondary)
+                }
+            }
             HStack {
-                Text("Rs.")
+                Text("LKR")
                     .foregroundStyle(.secondary)
                 TextField("0.00", text: $formAmount)
                     .keyboardType(.decimalPad)
+            }
+            if result.isForeignCurrency {
+                Text("Rate fetched live. Verify before saving.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
         }
     }

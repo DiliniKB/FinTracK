@@ -135,9 +135,9 @@ struct AppRootView: View {
                 .tabItem {
                     Label("Budgets", systemImage: "chart.bar.fill")
                 }
-            CategoriesScreen()
+            SettingsScreen(authVM: authVM, biometricService: DefaultBiometricService())
                 .tabItem {
-                    Label("Categories", systemImage: "tag.fill")
+                    Label("Settings", systemImage: "gearshape.fill")
                 }
         }
     }

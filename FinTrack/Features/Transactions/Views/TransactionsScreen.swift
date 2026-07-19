@@ -194,7 +194,7 @@ struct TransactionsScreen: View {
 
 // MARK: - Monthly summary card
 
-private struct MonthlySummaryCard: View {
+struct MonthlySummaryCard: View {
     let summary: MonthlySummary
 
     var body: some View {

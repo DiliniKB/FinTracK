@@ -123,6 +123,10 @@ struct AppRootView: View {
 
     private var mainTabView: some View {
         TabView {
+            DashboardScreen()
+                .tabItem {
+                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
+                }
             TransactionsScreen()
                 .tabItem {
                     Label("Transactions", systemImage: "list.bullet")

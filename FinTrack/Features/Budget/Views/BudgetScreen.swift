@@ -5,6 +5,7 @@ struct BudgetScreen: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var vm: BudgetViewModel?
+    @Query private var queryBudgets: [Budget]
 
     // MARK: - Derived
 
@@ -41,11 +42,13 @@ struct BudgetScreen: View {
                 set: { vm?.showAddSheet = $0 }
             ), onDismiss: {
                 vm?.resetForm()
-                vm?.loadBudgets()
             }) {
                 if let vm {
                     BudgetFormSheet(vm: vm, availableCategories: vm.unbudgetedCategories)
                 }
+            }
+            .onChange(of: queryBudgets.count) { _, _ in
+                vm?.loadBudgets()
             }
             .onAppear {
                 if vm == nil {

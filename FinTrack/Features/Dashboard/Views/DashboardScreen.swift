@@ -46,20 +46,17 @@ struct DashboardScreen: View {
     @ViewBuilder
     private func content(vm: DashboardViewModel) -> some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 20) {
                 monthNavigator(vm: vm)
 
                 if let summary = vm.monthlySummary {
-                    MonthlySummaryCard(summary: summary)
+                    netBalanceHero(summary: summary)
                         .padding(.horizontal)
                 }
 
                 if vm.categoryBreakdown.isEmpty {
-                    emptyCard(
-                        icon:    "chart.pie",
-                        message: "No expenses this month"
-                    )
-                    .padding(.horizontal)
+                    emptyCard(icon: "chart.pie", message: "No expenses recorded this month")
+                        .padding(.horizontal)
                 } else {
                     SpendingDonutChart(
                         breakdown:    vm.categoryBreakdown,
@@ -107,21 +104,97 @@ struct DashboardScreen: View {
         .padding(.horizontal, 4)
     }
 
+    // MARK: - Net balance hero
+
+    private func netBalanceHero(summary: MonthlySummary) -> some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 6) {
+                Text("Net Balance")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(lkr(summary.net))
+                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .foregroundStyle(summary.net >= 0 ? Color.primary : .red)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+            }
+
+            Divider()
+
+            HStack(spacing: 0) {
+                incomeExpenseItem(
+                    label:  "Income",
+                    amount: summary.totalIncome,
+                    icon:   "arrow.down.circle.fill",
+                    color:  .green
+                )
+                Divider().frame(height: 36)
+                incomeExpenseItem(
+                    label:  "Expenses",
+                    amount: summary.totalExpense,
+                    icon:   "arrow.up.circle.fill",
+                    color:  .red
+                )
+            }
+        }
+        .padding(.vertical, 20)
+        .padding(.horizontal)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func incomeExpenseItem(label: String, amount: Double, icon: String, color: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(lkr(amount))
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: - Budget section
 
     private func budgetSection(vm: DashboardViewModel) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Budget Health")
-                .font(.headline)
-                .padding(.horizontal)
+        let total   = vm.budgetProgressList.count
+        let onTrack = vm.budgetProgressList.filter { !$0.isOverBudget }.count
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center) {
+                Text("Budget Health")
+                    .font(.headline)
+                Spacer()
+                if total > 0 {
+                    Text("\(onTrack) of \(total) on track")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(onTrack == total ? .green : .orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background((onTrack == total ? Color.green : Color.orange).opacity(0.12))
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal)
 
             if vm.budgetProgressList.isEmpty {
                 emptyCard(icon: "chart.bar", message: "No budgets set for this month")
                     .padding(.horizontal)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(vm.budgetProgressList, id: \.budget.id) { progress in
+                VStack(spacing: 10) {
+                    ForEach(vm.budgetProgressList.prefix(3), id: \.budget.id) { progress in
                         DashboardBudgetRow(progress: progress)
+                    }
+                    if vm.budgetProgressList.count > 3 {
+                        Text("\(vm.budgetProgressList.count - 3) more budget\(vm.budgetProgressList.count - 3 == 1 ? "" : "s") — see Budgets tab")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
                 .padding()
@@ -161,7 +234,7 @@ struct DashboardScreen: View {
         }
     }
 
-    // MARK: - Empty card
+    // MARK: - Helpers
 
     private func emptyCard(icon: String, message: String) -> some View {
         HStack(spacing: 12) {
@@ -175,5 +248,9 @@ struct DashboardScreen: View {
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func lkr(_ amount: Double) -> String {
+        NumberFormatter.lkr.string(from: NSNumber(value: amount)) ?? "Rs. 0.00"
     }
 }

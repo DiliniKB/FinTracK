@@ -140,7 +140,6 @@ class TransactionViewModel {
                 )
                 try transactionRepository.add(transaction)
             }
-            loadTransactions()
             resetForm()
             showAddSheet = false
         } catch {

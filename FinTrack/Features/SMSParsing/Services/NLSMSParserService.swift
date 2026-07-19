@@ -151,6 +151,41 @@ final class NLSMSParserService: SMSParserService {
     // MARK: - Date extraction
 
     private func extractDate(_ text: String) -> Date? {
+        // Try numeric date formats first (DD/MM/YY, DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY).
+        // NSDataDetector misreads "17/07/26" as YY/MM/DD → 2017 instead of DD/MM/YY → 2026.
+        let numericPattern = #"(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{2,4})"#
+        if let regex = try? NSRegularExpression(pattern: numericPattern),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let r1 = Range(match.range(at: 1), in: text),
+           let r2 = Range(match.range(at: 2), in: text),
+           let r3 = Range(match.range(at: 3), in: text),
+           let day   = Int(text[r1]),
+           let month = Int(text[r2]),
+           let rawYear = Int(text[r3]),
+           day >= 1, day <= 31, month >= 1, month <= 12 {
+            let year = rawYear < 100 ? 2000 + rawYear : rawYear
+            var components = DateComponents()
+            components.day   = day
+            components.month = month
+            components.year  = year
+            if let date = Calendar.current.date(from: components) { return date }
+        }
+
+        // Try "DD-MMM-YYYY" style (e.g., "27-Jun-2026", "17-Jul-2026")
+        let namedMonthPattern = #"(\d{1,2})[/\-\s]([A-Za-z]{3,9})[/\-\s,\s](\d{2,4})"#
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        for fmt in ["d-MMM-yyyy", "d MMM yyyy", "d/MMM/yyyy", "d-MMMM-yyyy", "d MMMM yyyy"] {
+            formatter.dateFormat = fmt
+            if let regex = try? NSRegularExpression(pattern: namedMonthPattern),
+               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let range = Range(match.range(at: 0), in: text) {
+                let candidate = String(text[range])
+                if let date = formatter.date(from: candidate) { return date }
+            }
+        }
+
+        // Last resort: NSDataDetector (handles long-form dates like "July 17, 2026")
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else {
             return nil
         }

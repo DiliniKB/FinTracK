@@ -6,6 +6,10 @@ struct TransactionsScreen: View {
     @Environment(\.modelContext) private var modelContext
     @State private var vm: TransactionViewModel?
 
+    // Used only as a change detector — @Query observes SwiftData inserts/deletes
+    // so we can reload the ViewModel snapshot whenever the store changes.
+    @Query private var queryTransactions: [Transaction]
+
     // MARK: - Derived
 
     private var errorMessage: String? {
@@ -41,11 +45,13 @@ struct TransactionsScreen: View {
                 set: { vm?.showAddSheet = $0 }
             ), onDismiss: {
                 vm?.resetForm()
-                vm?.loadTransactions()
             }) {
                 if let vm {
                     TransactionFormSheet(vm: vm)
                 }
+            }
+            .onChange(of: queryTransactions.count) { _, _ in
+                vm?.loadTransactions()
             }
             .onAppear {
                 if vm == nil {
@@ -76,12 +82,6 @@ struct TransactionsScreen: View {
     private func content(vm: TransactionViewModel) -> some View {
         VStack(spacing: 0) {
             monthNavigator(vm: vm)
-
-            if let summary = vm.monthlySummary {
-                MonthlySummaryCard(summary: summary)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-            }
 
             Picker("Filter", selection: Binding(
                 get: { vm.selectedFilter },
@@ -192,33 +192,3 @@ struct TransactionsScreen: View {
     }
 }
 
-// MARK: - Monthly summary card
-
-struct MonthlySummaryCard: View {
-    let summary: MonthlySummary
-
-    var body: some View {
-        HStack {
-            summaryItem(label: "Income",  amount: summary.totalIncome,  color: .green)
-            Divider().frame(height: 32)
-            summaryItem(label: "Expense", amount: summary.totalExpense, color: .red)
-            Divider().frame(height: 32)
-            summaryItem(label: "Net",     amount: summary.net,          color: summary.net >= 0 ? .green : .red)
-        }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func summaryItem(label: String, amount: Double, color: Color) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(NumberFormatter.lkr.string(from: NSNumber(value: amount)) ?? "Rs. 0.00")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}

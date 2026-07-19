@@ -161,7 +161,6 @@ class BudgetViewModel {
                 )
                 try budgetRepository.add(budget)
             }
-            loadBudgets()
             resetForm()
             showAddSheet = false
         } catch {

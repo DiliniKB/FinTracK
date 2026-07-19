@@ -35,15 +35,14 @@ struct FinTrackApp: App {
     // MARK: - SwiftData
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-            Category.self,
-            Transaction.self,
-            Budget.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let schema = Schema(AppSchemaV1.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(
+                for: schema,
+                migrationPlan: AppMigrationPlan.self,
+                configurations: [config]
+            )
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

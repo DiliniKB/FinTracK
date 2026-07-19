@@ -14,6 +14,7 @@ class BudgetViewModel {
     // MARK: - Display state
 
     private(set) var budgetProgressList: [BudgetProgress] = []
+    private(set) var allExpenseCategories: [Category] = []
     private(set) var unbudgetedCategories: [Category] = []
     var selectedMonth: Date
     var viewState: ViewState = .idle
@@ -57,13 +58,14 @@ class BudgetViewModel {
         do {
             var budgets = try budgetRepository.fetchByMonth(selectedMonth)
 
-            // Auto-roll recurring budgets from the previous month if this month has none.
-            if budgets.isEmpty {
-                budgets = try rolloverRecurringBudgets()
-            }
+            // Merge in any recurring budgets from the most recent month that had them,
+            // skipping categories already present. Handles skipped months and mixed months.
+            let rolledOver = try rolloverRecurringBudgets(existing: budgets)
+            budgets.append(contentsOf: rolledOver)
 
             let transactions = try transactionRepository.fetchByMonth(selectedMonth)
             let allExpenseCategories = try categoryRepository.fetchByType(.expense)
+            self.allExpenseCategories = allExpenseCategories
 
             var spentMap: [UUID: Double] = [:]
             for txn in transactions where txn.type == .expense {
@@ -84,17 +86,30 @@ class BudgetViewModel {
         }
     }
 
-    // Copies recurring budgets from the previous month into selectedMonth.
-    // Returns the newly created budgets so loadBudgets can use them immediately.
+    // Finds recurring budgets from the most recent past month (up to 12 months back)
+    // and creates entries for any categories not already in `existing`.
     @discardableResult
-    private func rolloverRecurringBudgets() throws -> [Budget] {
-        let prevMonth = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) ?? selectedMonth
-        let previous  = try budgetRepository.fetchByMonth(prevMonth)
-        let recurring = previous.filter(\.isRecurring)
-        guard !recurring.isEmpty else { return [] }
+    private func rolloverRecurringBudgets(existing: [Budget]) throws -> [Budget] {
+        // Find the nearest past month that has recurring budgets.
+        var sourceRecurring: [Budget] = []
+        for offset in 1...12 {
+            guard let month = Calendar.current.date(byAdding: .month, value: -offset, to: selectedMonth) else { break }
+            let prev = try budgetRepository.fetchByMonth(month)
+            let recurring = prev.filter(\.isRecurring)
+            if !recurring.isEmpty {
+                sourceRecurring = recurring
+                break
+            }
+        }
+        guard !sourceRecurring.isEmpty else { return [] }
+
+        // Only create budgets for categories not already present this month.
+        let existingIds = Set(existing.map(\.categoryId))
+        let toCreate = sourceRecurring.filter { !existingIds.contains($0.categoryId) }
+        guard !toCreate.isEmpty else { return [] }
 
         var created: [Budget] = []
-        for prev in recurring {
+        for prev in toCreate {
             let budget = Budget(
                 categoryId:       prev.categoryId,
                 categoryName:     prev.categoryName,

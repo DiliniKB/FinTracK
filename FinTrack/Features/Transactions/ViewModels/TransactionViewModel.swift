@@ -162,12 +162,12 @@ class TransactionViewModel {
     // MARK: - resetForm
 
     func resetForm() {
-        formAmount       = ""
-        formType         = .expense
-        formCategory     = nil
-        formPayee        = ""
-        formNote         = ""
-        formDate         = Date()
+        formAmount        = ""
+        formType          = .expense
+        formCategory      = nil
+        formPayee         = ""
+        formNote          = ""
+        formDate          = isCurrentMonth ? Date() : selectedMonth
         transactionToEdit = nil
     }
 

@@ -41,6 +41,7 @@ struct TransactionsScreen: View {
                 set: { vm?.showAddSheet = $0 }
             ), onDismiss: {
                 vm?.resetForm()
+                vm?.loadTransactions()
             }) {
                 if let vm {
                     TransactionFormSheet(vm: vm)
@@ -101,6 +102,12 @@ struct TransactionsScreen: View {
                 emptyState(vm: vm)
             } else {
                 transactionList(vm: vm)
+            }
+        }
+        .overlay {
+            if case .loading = vm.viewState {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
             }
         }
     }

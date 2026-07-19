@@ -41,6 +41,7 @@ struct BudgetScreen: View {
                 set: { vm?.showAddSheet = $0 }
             ), onDismiss: {
                 vm?.resetForm()
+                vm?.loadBudgets()
             }) {
                 if let vm {
                     BudgetFormSheet(vm: vm, availableCategories: vm.unbudgetedCategories)
@@ -88,6 +89,12 @@ struct BudgetScreen: View {
                 budgetList(vm: vm)
             }
         }
+        .overlay {
+            if case .loading = vm.viewState {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
+            }
+        }
     }
 
     // MARK: - Month navigator
@@ -126,7 +133,7 @@ struct BudgetScreen: View {
                                 vm.budgetToEdit    = progress.budget
                                 vm.formLimitAmount = String(progress.budget.limitAmount)
                                 vm.formIsRecurring = progress.budget.isRecurring
-                                vm.formCategory    = vm.unbudgetedCategories.first {
+                                vm.formCategory    = vm.allExpenseCategories.first {
                                     $0.id == progress.budget.categoryId
                                 }
                                 vm.showAddSheet = true

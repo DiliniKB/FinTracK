@@ -15,6 +15,9 @@ struct AppRootView: View {
 
     @Environment(\.modelContext) private var modelContext
 
+    // SMS coordinator is created on first appear once modelContext is available.
+    @State private var smsCoordinator: SMSCoordinator?
+
     init(authVM: AuthViewModel) {
         self._authVM = State(initialValue: authVM)
     }
@@ -61,6 +64,38 @@ struct AppRootView: View {
             case .locked:          lockedContext = true
             case .unauthenticated: lockedContext = false
             default:               break
+            }
+        }
+        .onAppear {
+            guard smsCoordinator == nil else { return }
+            let catRepo = SwiftDataCategoryRepository(context: modelContext)
+            smsCoordinator = SMSCoordinator(
+                parser:              NLSMSParserService(),
+                notificationService: SMSNotificationService(),
+                categoryRepository:  catRepo
+            )
+            Task { await smsCoordinator?.requestNotificationPermission() }
+        }
+        .onOpenURL { url in
+            guard url.scheme == "fintrack",
+                  url.host == "sms",
+                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let smsText = components.queryItems?.first(where: { $0.name == "text" })?.value
+            else { return }
+            smsCoordinator?.handle(smsText: smsText)
+        }
+        .sheet(isPresented: Binding(
+            get: { smsCoordinator?.showConfirmation ?? false },
+            set: { if !$0 { smsCoordinator?.dismiss() } }
+        )) {
+            if let coordinator = smsCoordinator,
+               let result = coordinator.pendingResult {
+                SMSConfirmationSheet(
+                    result:                result,
+                    coordinator:           coordinator,
+                    categoryRepository:    SwiftDataCategoryRepository(context: modelContext),
+                    transactionRepository: SwiftDataTransactionRepository(context: modelContext)
+                )
             }
         }
     }

@@ -74,10 +74,11 @@ struct TransactionsScreen: View {
     @ViewBuilder
     private func content(vm: TransactionViewModel) -> some View {
         VStack(spacing: 0) {
+            monthNavigator(vm: vm)
+
             if let summary = vm.monthlySummary {
                 MonthlySummaryCard(summary: summary)
                     .padding(.horizontal)
-                    .padding(.top, 12)
                     .padding(.bottom, 8)
             }
 
@@ -97,11 +98,43 @@ struct TransactionsScreen: View {
             .padding(.bottom, 8)
 
             if vm.groupedTransactions.isEmpty {
-                emptyState(filter: vm.selectedFilter)
+                emptyState(vm: vm)
             } else {
                 transactionList(vm: vm)
             }
         }
+    }
+
+    // MARK: - Month navigator
+
+    private func monthNavigator(vm: TransactionViewModel) -> some View {
+        HStack {
+            Button {
+                vm.goToPreviousMonth()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .fontWeight(.semibold)
+                    .frame(width: 44, height: 44)
+            }
+
+            Spacer()
+
+            Text(vm.selectedMonth.formatted(.dateTime.month(.wide).year()))
+                .font(.headline)
+
+            Spacer()
+
+            Button {
+                vm.goToNextMonth()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .fontWeight(.semibold)
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(vm.isCurrentMonth)
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Transaction list
@@ -133,11 +166,13 @@ struct TransactionsScreen: View {
 
     // MARK: - Empty state
 
-    private func emptyState(filter: TransactionFilter) -> some View {
-        ContentUnavailableView(
-            "No \(filter.rawValue) Transactions",
+    private func emptyState(vm: TransactionViewModel) -> some View {
+        let monthName = vm.selectedMonth.formatted(.dateTime.month(.wide))
+        let label = vm.selectedFilter == .all ? "transactions" : vm.selectedFilter.rawValue.lowercased() + " transactions"
+        return ContentUnavailableView(
+            "No \(label) in \(monthName)",
             systemImage: "tray",
-            description: Text("Tap + to log your first transaction.")
+            description: Text(vm.isCurrentMonth ? "Tap + to log your first transaction." : "Nothing recorded for this month.")
         )
     }
 

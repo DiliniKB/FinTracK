@@ -15,8 +15,14 @@ class TransactionViewModel {
 
     private(set) var groupedTransactions: [(date: Date, transactions: [Transaction])] = []
     private(set) var monthlySummary: MonthlySummary?
+    private(set) var allMonthTransactions: [Transaction] = []
     var selectedFilter: TransactionFilter = .all
+    var selectedMonth: Date = Calendar.current.startOfMonth(for: Date())
     var viewState: ViewState = .idle
+
+    var isCurrentMonth: Bool {
+        Calendar.current.isDate(selectedMonth, equalTo: Date(), toGranularity: .month)
+    }
 
     // MARK: - Sheet control
 
@@ -46,22 +52,34 @@ class TransactionViewModel {
         self.categoryRepository = categoryRepository
     }
 
+    // MARK: - Month navigation
+
+    func goToPreviousMonth() {
+        selectedMonth = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) ?? selectedMonth
+        loadTransactions()
+    }
+
+    func goToNextMonth() {
+        guard !isCurrentMonth else { return }
+        selectedMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedMonth) ?? selectedMonth
+        loadTransactions()
+    }
+
     // MARK: - loadTransactions
 
     func loadTransactions() {
         viewState = .loading
         do {
-            let transactions: [Transaction]
+            let all = try transactionRepository.fetchByMonth(selectedMonth)
+            allMonthTransactions = all
+            let filtered: [Transaction]
             switch selectedFilter {
-            case .all:
-                transactions = try transactionRepository.fetchAll()
-            case .income:
-                transactions = try transactionRepository.fetchByType(.income)
-            case .expense:
-                transactions = try transactionRepository.fetchByType(.expense)
+            case .all:     filtered = all
+            case .income:  filtered = all.filter { $0.type == .income }
+            case .expense: filtered = all.filter { $0.type == .expense }
             }
-            groupedTransactions = groupByDate(transactions)
-            monthlySummary = computeMonthlySummary(from: transactions)
+            groupedTransactions = groupByDate(filtered)
+            monthlySummary = computeMonthlySummary(from: all)
             viewState = .idle
         } catch {
             viewState = .error(error.localizedDescription)
@@ -184,19 +202,8 @@ class TransactionViewModel {
     // MARK: - computeMonthlySummary
 
     func computeMonthlySummary(from transactions: [Transaction]) -> MonthlySummary {
-        let calendar = Calendar.current
-        let now = Date()
-        let currentMonth = calendar.dateComponents([.year, .month], from: now)
-        let thisMonthTxns = transactions.filter {
-            let c = calendar.dateComponents([.year, .month], from: $0.date)
-            return c.year == currentMonth.year && c.month == currentMonth.month
-        }
-        let income  = thisMonthTxns.filter { $0.type == .income  }.reduce(0) { $0 + $1.amount }
-        let expense = thisMonthTxns.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
-        return MonthlySummary(
-            month:        calendar.date(from: currentMonth) ?? now,
-            totalIncome:  income,
-            totalExpense: expense
-        )
+        let income  = transactions.filter { $0.type == .income  }.reduce(0) { $0 + $1.amount }
+        let expense = transactions.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
+        return MonthlySummary(month: selectedMonth, totalIncome: income, totalExpense: expense)
     }
 }

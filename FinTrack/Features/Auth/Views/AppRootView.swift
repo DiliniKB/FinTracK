@@ -82,7 +82,8 @@ struct AppRootView: View {
                   let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                   let smsText = components.queryItems?.first(where: { $0.name == "text" })?.value
             else { return }
-            smsCoordinator?.handle(smsText: smsText)
+            let sender = components.queryItems?.first(where: { $0.name == "sender" })?.value
+            smsCoordinator?.handle(smsText: smsText, sender: sender)
         }
         .sheet(isPresented: Binding(
             get: { smsCoordinator?.showConfirmation ?? false },

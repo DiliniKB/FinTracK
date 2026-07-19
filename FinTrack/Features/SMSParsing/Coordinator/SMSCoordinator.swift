@@ -60,11 +60,11 @@ final class SMSCoordinator {
 
     // MARK: - Handle incoming SMS
 
-    func handle(smsText: String) {
+    func handle(smsText: String, sender: String? = nil) {
         parseError = nil
         Task {
             do {
-                var result = try parser.parse(smsText)
+                var result = try parser.parse(smsText, sender: sender)
                 result = await convertToLKR(result)
                 result = resolveCategoryId(for: result)
                 pendingResult    = result

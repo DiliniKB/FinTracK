@@ -15,6 +15,7 @@ struct SMSConfirmationSheet: View {
     @State private var formType: CategoryType
     @State private var formPayee: String
     @State private var formDate: Date
+    @State private var formBank: DetectedBank
     @State private var formCategory: Category? = nil
     @State private var availableCategories: [Category] = []
     @State private var showRawSMS = false
@@ -36,6 +37,7 @@ struct SMSConfirmationSheet: View {
         _formType   = State(initialValue: result.type)
         _formPayee  = State(initialValue: result.payee)
         _formDate   = State(initialValue: result.date)
+        _formBank   = State(initialValue: result.bank)
     }
 
     // MARK: - Derived
@@ -88,14 +90,18 @@ struct SMSConfirmationSheet: View {
     // MARK: - Sections
 
     private var bankSection: some View {
-        Section {
+        Section("Source") {
             HStack {
-                Label(result.bank.rawValue, systemImage: "building.columns")
-                Spacer()
+                Picker(selection: $formBank) {
+                    ForEach(DetectedBank.allCases, id: \.self) { bank in
+                        Text(bank.rawValue).tag(bank)
+                    }
+                } label: {
+                    Image(systemName: "building.columns")
+                        .foregroundStyle(.secondary)
+                }
                 confidenceBadge
             }
-        } header: {
-            Text("Source")
         }
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-enum DetectedBank: String {
+enum DetectedBank: String, CaseIterable {
     case commercial = "Commercial Bank"
     case sampath    = "Sampath Bank"
     case hnb        = "HNB"

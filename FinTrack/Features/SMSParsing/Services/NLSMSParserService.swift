@@ -3,10 +3,10 @@ import NaturalLanguage
 
 final class NLSMSParserService: SMSParserService {
 
-    func parse(_ text: String) throws -> ParsedSMSResult {
+    func parse(_ text: String, sender: String? = nil) throws -> ParsedSMSResult {
         guard isBankSMS(text) else { throw SMSParseError.notBankSMS }
 
-        let bank     = detectBank(text)
+        let bank     = detectBank(text, sender: sender)
         let amount   = try extractAmount(text)
         let currency = extractCurrency(text)
         let type     = detectType(text)
@@ -38,13 +38,15 @@ final class NLSMSParserService: SMSParserService {
         return keywords.contains { lower.contains($0.lowercased()) }
     }
 
-    private func detectBank(_ text: String) -> DetectedBank {
-        if text.contains("COMBANK") || text.contains("Commercial") { return .commercial }
-        if text.contains("SAMPATH") || text.contains("Sampath")    { return .sampath }
-        if text.contains("HNB")                                     { return .hnb }
-        if text.contains("BOCLK")  || text.contains("BOC:")        { return .boc }
-        if text.contains("NSBLK")  || text.contains("NSB Alert")   { return .nsb }
-        if text.contains("PEOPLESB") || text.contains("Peoples")   { return .peoples }
+    private func detectBank(_ text: String, sender: String? = nil) -> DetectedBank {
+        // Check sender ID first — it's the most reliable signal
+        let combined = [sender, text].compactMap { $0 }.joined(separator: " ")
+        if combined.contains("COMBANK")  || combined.contains("Commercial") { return .commercial }
+        if combined.contains("SAMPATH")  || combined.contains("Sampath")    { return .sampath }
+        if combined.contains("HNB")                                          { return .hnb }
+        if combined.contains("BOCLK")   || combined.contains("BOC:")        { return .boc }
+        if combined.contains("NSBLK")   || combined.contains("NSB Alert")   { return .nsb }
+        if combined.contains("PEOPLESB") || combined.contains("Peoples")    { return .peoples }
         return .unknown
     }
 

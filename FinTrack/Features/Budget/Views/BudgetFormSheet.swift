@@ -31,6 +31,7 @@ struct BudgetFormSheet: View {
             Form {
                 categorySection
                 amountSection
+                recurringSection
                 monthSection
             }
             .navigationTitle(isEditMode ? "Edit Budget" : "New Budget")
@@ -90,6 +91,18 @@ struct BudgetFormSheet: View {
                 TextField("0.00", text: $vm.formLimitAmount)
                     .keyboardType(.decimalPad)
             }
+        }
+    }
+
+    // MARK: - Recurring section
+
+    private var recurringSection: some View {
+        Section {
+            Toggle("Repeat every month", isOn: $vm.formIsRecurring)
+        } footer: {
+            Text(vm.formIsRecurring
+                 ? "This budget will auto-carry to the next month."
+                 : "This budget applies to this month only.")
         }
     }
 

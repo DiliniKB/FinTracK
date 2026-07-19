@@ -66,7 +66,9 @@ ParsedSMSResult or ParseError
 
 ```swift
 struct ParsedSMSResult {
-    let amount: Double
+    let amount: Double              // always in LKR (converted if foreign)
+    let originalAmount: Double      // raw parsed amount in original currency
+    let originalCurrency: String    // "LKR", "USD", "SGD", etc.
     let type: CategoryType          // .income / .expense
     let payee: String               // merchant name
     let date: Date
@@ -74,9 +76,11 @@ struct ParsedSMSResult {
     let rawSMS: String              // original text for audit
     let bank: DetectedBank
     let confidence: Double          // 0.0–1.0
+
+    var isForeignCurrency: Bool { originalCurrency != "LKR" }
 }
 
-enum DetectedBank: String {
+enum DetectedBank: String, CaseIterable {
     case commercial = "Commercial Bank"
     case sampath    = "Sampath Bank"
     case hnb        = "HNB"
@@ -111,17 +115,29 @@ enum SMSParseError: LocalizedError {
 </array>
 ```
 
-### Handler (in FinTrackApp.swift)
+### Handler (in AppRootView.swift)
 ```swift
+// URL format: fintrack://sms?sender=COMBANK&text=<message body>
+// Note: '#' in SMS body is handled defensively by re-attaching the URL fragment.
 .onOpenURL { url in
-    guard url.scheme == "fintrack",
-          url.host == "sms",
-          let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-          let smsText = components.queryItems?.first(where: { $0.name == "text" })?.value
+    guard url.scheme == "fintrack", url.host == "sms" else { return }
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    if let fragment = url.fragment {
+        if let idx = components?.queryItems?.firstIndex(where: { $0.name == "text" }) {
+            let existing = components?.queryItems?[idx].value ?? ""
+            components?.queryItems?[idx] = URLQueryItem(name: "text", value: existing + "#" + fragment)
+        }
+    }
+    guard let smsText = components?.queryItems?.first(where: { $0.name == "text" })?.value
     else { return }
-
-    smsCoordinator.handle(smsText: smsText)
+    let sender = components?.queryItems?.first(where: { $0.name == "sender" })?.value
+    smsCoordinator?.handle(smsText: smsText, sender: sender)
 }
+```
+
+### Shortcut URL format
+```
+fintrack://sms?sender=[Shortcut Input → Sender Name]&text=[Shortcut Input → Message Content]
 ```
 
 ---
@@ -386,11 +402,12 @@ Features/SMSParsing/
 │   ├── DetectedBank.swift
 │   └── SMSParseError.swift
 ├── Services/
-│   ├── SMSParserService.swift          # Protocol
+│   ├── SMSParserService.swift          # Protocol (V2 swap point for Claude API)
 │   ├── NLSMSParserService.swift        # NL implementation
-│   └── SMSNotificationService.swift    # UNUserNotificationCenter
+│   ├── SMSNotificationService.swift    # UNUserNotificationCenter
+│   └── CurrencyConverterService.swift  # Converts foreign currency to LKR via open.er-api.com
 ├── Coordinator/
-│   └── SMSCoordinator.swift            # Owns pending state, wires parser + notification
+│   └── SMSCoordinator.swift            # Owns pending state, wires parser + notification + conversion
 └── Views/
     └── SMSConfirmationSheet.swift      # Editable confirmation before save
 ```
@@ -399,16 +416,20 @@ Features/SMSParsing/
 
 ## 13. Acceptance Criteria
 
-- [ ] `fintrack://sms?text=...` URL scheme opens app and triggers parsing
+- [ ] `fintrack://sms?sender=BANK&text=...` URL scheme opens app and triggers parsing
 - [ ] Amount extracted correctly from all 6 bank formats
-- [ ] Debit → expense, credit → income detected correctly
-- [ ] Merchant/payee name extracted
-- [ ] Date extracted (fallback to today)
+- [ ] Foreign currency amounts (USD, SGD, EUR, GBP, AUD) converted to LKR via live rate
+- [ ] Debit keywords take priority over credit keywords in type detection
+- [ ] Multi-word merchant names extracted correctly (e.g. "KEELLS SUPER")
+- [ ] Bank detected from sender ID first, then SMS body; editable in confirmation sheet
+- [ ] Date extracted (fallback to today); confidence reflects whether date was found
+- [ ] `#` in SMS body handled correctly (URL fragment reattachment)
+- [ ] Rapid SMS handled without race condition (in-flight parse cancelled on new SMS)
 - [ ] Local notification fires with amount + payee
 - [ ] Tapping notification opens confirmation sheet
 - [ ] User can edit all fields before saving
 - [ ] Category pre-selected if merchant keyword matched
-- [ ] Saved transaction has `source: .sms`
+- [ ] Saved transaction has `source: .sms` and `bank` set
 - [ ] Non-bank SMS silently ignored (no notification)
 
 ---

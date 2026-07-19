@@ -123,10 +123,10 @@ struct BudgetScreen: View {
                         BudgetProgressRow(progress: progress)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                vm.budgetToEdit         = progress.budget
-                                vm.formLimitAmount      = String(progress.budget.limitAmount)
-                                // Resolve live Category for the picker
-                                vm.formCategory = vm.unbudgetedCategories.first {
+                                vm.budgetToEdit    = progress.budget
+                                vm.formLimitAmount = String(progress.budget.limitAmount)
+                                vm.formIsRecurring = progress.budget.isRecurring
+                                vm.formCategory    = vm.unbudgetedCategories.first {
                                     $0.id == progress.budget.categoryId
                                 }
                                 vm.showAddSheet = true

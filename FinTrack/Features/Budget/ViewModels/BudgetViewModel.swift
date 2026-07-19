@@ -27,6 +27,7 @@ class BudgetViewModel {
 
     var formCategory: Category? = nil
     var formLimitAmount: String = ""
+    var formIsRecurring: Bool = true
 
     // MARK: - Dependencies
 
@@ -54,11 +55,16 @@ class BudgetViewModel {
     func loadBudgets() {
         viewState = .loading
         do {
-            let budgets = try budgetRepository.fetchByMonth(selectedMonth)
+            var budgets = try budgetRepository.fetchByMonth(selectedMonth)
+
+            // Auto-roll recurring budgets from the previous month if this month has none.
+            if budgets.isEmpty {
+                budgets = try rolloverRecurringBudgets()
+            }
+
             let transactions = try transactionRepository.fetchByMonth(selectedMonth)
             let allExpenseCategories = try categoryRepository.fetchByType(.expense)
 
-            // Compute spent per categoryId from transactions for the selected month.
             var spentMap: [UUID: Double] = [:]
             for txn in transactions where txn.type == .expense {
                 spentMap[txn.categoryId, default: 0] += txn.amount
@@ -68,7 +74,6 @@ class BudgetViewModel {
                 BudgetProgress(budget: budget, spent: spentMap[budget.categoryId] ?? 0)
             }
 
-            // Categories that have no budget entry for this month.
             let budgetedIds = Set(budgets.map(\.categoryId))
             unbudgetedCategories = allExpenseCategories.filter { !budgetedIds.contains($0.id) }
 
@@ -77,6 +82,32 @@ class BudgetViewModel {
         } catch {
             viewState = .error(error.localizedDescription)
         }
+    }
+
+    // Copies recurring budgets from the previous month into selectedMonth.
+    // Returns the newly created budgets so loadBudgets can use them immediately.
+    @discardableResult
+    private func rolloverRecurringBudgets() throws -> [Budget] {
+        let prevMonth = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) ?? selectedMonth
+        let previous  = try budgetRepository.fetchByMonth(prevMonth)
+        let recurring = previous.filter(\.isRecurring)
+        guard !recurring.isEmpty else { return [] }
+
+        var created: [Budget] = []
+        for prev in recurring {
+            let budget = Budget(
+                categoryId:       prev.categoryId,
+                categoryName:     prev.categoryName,
+                categoryIcon:     prev.categoryIcon,
+                categoryColorHex: prev.categoryColorHex,
+                limitAmount:      prev.limitAmount,
+                month:            normalizedMonth(selectedMonth),
+                isRecurring:      true
+            )
+            try budgetRepository.add(budget)
+            created.append(budget)
+        }
+        return created
     }
 
     // MARK: - saveBudget
@@ -100,7 +131,7 @@ class BudgetViewModel {
                 existing.categoryName     = category.name
                 existing.categoryIcon     = category.icon
                 existing.categoryColorHex = category.colorHex
-                // Reset alert so user gets notified again at 80% of the new higher limit.
+                existing.isRecurring      = formIsRecurring
                 if limitIncreased { existing.alertFired = false }
                 try budgetRepository.update(existing)
             } else {
@@ -110,7 +141,8 @@ class BudgetViewModel {
                     categoryIcon:     category.icon,
                     categoryColorHex: category.colorHex,
                     limitAmount:      limit,
-                    month:            normalizedMonth(selectedMonth)
+                    month:            normalizedMonth(selectedMonth),
+                    isRecurring:      formIsRecurring
                 )
                 try budgetRepository.add(budget)
             }
@@ -139,6 +171,7 @@ class BudgetViewModel {
     func resetForm() {
         formCategory    = nil
         formLimitAmount = ""
+        formIsRecurring = true
         budgetToEdit    = nil
     }
 

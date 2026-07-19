@@ -11,6 +11,7 @@ final class Budget {
     var limitAmount: Double
     var month: Date           // Always normalized to first day of month
     var alertFired: Bool
+    var isRecurring: Bool
     var createdAt: Date
 
     init(
@@ -22,6 +23,7 @@ final class Budget {
         limitAmount: Double,
         month: Date,
         alertFired: Bool = false,
+        isRecurring: Bool = true,
         createdAt: Date = Date()
     ) {
         self.id               = id
@@ -32,6 +34,7 @@ final class Budget {
         self.limitAmount      = limitAmount
         self.month            = month
         self.alertFired       = alertFired
+        self.isRecurring      = isRecurring
         self.createdAt        = createdAt
     }
 }
